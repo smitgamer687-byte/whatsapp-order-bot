@@ -33,7 +33,7 @@ WEBSITE_URL = os.environ.get('WEBSITE_URL', 'https://smitgamer687-byte.github.io
 # IMPORTANT: Get your REAL API key from Pay0.shop dashboard
 PAYO_USER_TOKEN = os.environ.get('PAYO_API_KEY')  # This must be set in Variables.env
 PAYO_BASE_URL = 'https://pay0.shop'
-PAYO_WEBHOOK_URL = 'https://smitgamer687.pythonanywhere.com/webhook/payo-callback'
+PAYO_WEBHOOK_URL = 'https://whatsapp-order-bot-vj1p.onrender.com/webhook/payo-callback'
 
 # WhatsApp API URL
 WHATSAPP_API_URL = f"https://graph.facebook.com/v23.0/{WHATSAPP_PHONE_ID}/messages"
@@ -1029,4 +1029,5 @@ if __name__ == '__main__':
         print("   WHATSAPP_PHONE_ID=your_phone_id")
         print("   PAYO_API_KEY=your_pay0_api_key")
         print("   WEBSITE_URL=your_website_url")
+
         print("="*70)
