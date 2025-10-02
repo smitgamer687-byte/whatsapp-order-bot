@@ -1,0 +1,9 @@
+Flask
+requests
+pyairtable
+python-dotenv
+qrcode
+Pillow
+gspread
+gunicorn
+flask-cors
