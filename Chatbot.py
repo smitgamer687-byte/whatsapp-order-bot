@@ -564,7 +564,7 @@ def health_check():
     })
 
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     print("\n" + "="*70)
     print("🤖 WhatsApp Order Bot with Static Payment Link")
     print("="*70)
@@ -616,4 +616,5 @@ if _name_ == '_main_':
         print("   WHATSAPP_PHONE_ID=your_phone_id")
         print("   WEBSITE_URL=your_website_url")
         print("="*70)
+
 
