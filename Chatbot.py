@@ -9,7 +9,7 @@ from flask_cors import CORS
 # Load environment variables
 load_dotenv('Variables.env')
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 # CORS Configuration
 CORS(app,
@@ -616,3 +616,4 @@ if _name_ == '_main_':
         print("   WHATSAPP_PHONE_ID=your_phone_id")
         print("   WEBSITE_URL=your_website_url")
         print("="*70)
+
