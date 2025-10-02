@@ -39,6 +39,7 @@ WHATSAPP_API_URL = f"https://graph.facebook.com/v23.0/{WHATSAPP_PHONE_ID}/messag
 class WhatsAppOrderBot:
     def _init_(self):
         self.user_states = {}
+        print("✅ WhatsAppOrderBot initialized with user_states")
 
     def normalize_phone_number(self, phone):
         """Normalize phone number for storage"""
@@ -171,6 +172,10 @@ class WhatsAppOrderBot:
     def send_order_confirmation(self, order_data):
         """Send order confirmation with buttons"""
         try:
+            # Ensure user_states exists
+            if not hasattr(self, 'user_states'):
+                self.user_states = {}
+                
             print(f"\n📋 Processing order: {json.dumps(order_data, indent=2)}")
 
             name = order_data.get('name', 'Customer')
@@ -218,6 +223,10 @@ Please confirm your order:"""
     def handle_button_response(self, phone_number, button_id, button_text=None):
         """Handle button clicks"""
         try:
+            # Ensure user_states exists
+            if not hasattr(self, 'user_states'):
+                self.user_states = {}
+                
             normalized_phone = self.normalize_phone_number(phone_number)
             current_state = self.user_states.get(normalized_phone, {})
 
@@ -283,6 +292,10 @@ Type 'hi' to start over."""
         """Handle basic messages"""
         message_body = str(message_body).lower().strip()
         normalized_phone = self.normalize_phone_number(phone_number)
+
+        # Ensure user_states exists
+        if not hasattr(self, 'user_states'):
+            self.user_states = {}
 
         # Check if in confirmation flow
         if normalized_phone in self.user_states:
@@ -370,8 +383,12 @@ Ready to order? Type 'hi'!"""
             return True
 
 
-# Initialize bot
+# Initialize bot GLOBALLY to persist across requests
 bot = WhatsAppOrderBot()
+
+# Verify initialization
+print(f"🤖 Bot initialized: {hasattr(bot, 'user_states')}")
+print(f"📊 User states type: {type(getattr(bot, 'user_states', None))}")
 
 
 @app.before_request
@@ -426,6 +443,10 @@ def google_sheets_webhook():
 def payment_confirmation_webhook():
     """Webhook to manually confirm payment and send order preparing message"""
     try:
+        # Ensure bot has user_states
+        if not hasattr(bot, 'user_states'):
+            bot.user_states = {}
+            
         data = request.json
         phone = data.get('phone')
         order_id = data.get('order_id')
@@ -616,5 +637,3 @@ if __name__ == '__main__':
         print("   WHATSAPP_PHONE_ID=your_phone_id")
         print("   WEBSITE_URL=your_website_url")
         print("="*70)
-
-
