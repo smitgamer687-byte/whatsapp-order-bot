@@ -32,7 +32,7 @@ WEBSITE_URL = os.environ.get('WEBSITE_URL', 'https://smitgamer687-byte.github.io
 
 # Payment Configuration
 BASE_PAYMENT_LINK = 'https://pay0.shop/paylink?link=2296&amt='
-SERVER_URL = os.environ.get('SERVER_URL', 'https://your-server-url.com')
+SERVER_URL = os.environ.get('SERVER_URL', 'https://whatsapp-order-bot-vj1p.onrender.com')
 
 # WhatsApp API URL
 WHATSAPP_API_URL = f"https://graph.facebook.com/v23.0/{WHATSAPP_PHONE_ID}/messages"
@@ -82,10 +82,12 @@ class WhatsAppOrderBot:
         }
 
         try:
+            print(f"📤 Sending WhatsApp message to {phone_number}")
             response = requests.post(WHATSAPP_API_URL, headers=headers, json=payload)
+            print(f"📥 WhatsApp API Response: {response.status_code} - {response.text}")
             return response.status_code == 200
         except Exception as e:
-            print(f"Error sending message: {e}")
+            print(f"❌ Error sending message: {e}")
             return False
 
     def send_cta_button(self, phone_number, message, button_text, website_url):
@@ -234,6 +236,10 @@ Please confirm your order:"""
             'status': 'pending'
         }
         
+        print(f"💾 Payment session created: {session_id}")
+        print(f"📞 Phone: {normalized_phone}")
+        print(f"💰 Amount: ₹{order_data.get('total', 0)}")
+        
         return session_id
 
     def handle_button_response(self, phone_number, button_id, button_text=None):
@@ -270,8 +276,8 @@ To make changes, visit our website below."""
                     # Generate payment session ID
                     session_id = self.generate_payment_session(normalized_phone, order_data)
                     
-                    # Create payment link with callback
-                    payment_url = f"{BASE_PAYMENT_LINK}{total}&session={session_id}"
+                    # Create payment link with callback - FIXED URL
+                    payment_url = f"{BASE_PAYMENT_LINK}{total}&redirect={SERVER_URL}/payment/callback?session={session_id}"
                     
                     message = f"""✅ Order Confirmed!
 
@@ -292,6 +298,7 @@ Click below to complete payment:"""
                     }
 
                     print(f"✅ Payment link sent with session: {session_id}")
+                    print(f"🔗 Payment URL: {payment_url}")
                     return success
 
             else:
@@ -310,16 +317,23 @@ Type 'hi' to start over."""
     def process_payment_success(self, session_id):
         """Process successful payment"""
         try:
+            print(f"\n💳 Processing payment for session: {session_id}")
+            
             if session_id not in self.payment_sessions:
                 print(f"❌ Session not found: {session_id}")
+                print(f"📋 Available sessions: {list(self.payment_sessions.keys())}")
                 return False
             
             session = self.payment_sessions[session_id]
             normalized_phone = session['phone']
             order_data = session['order_data']
             
+            print(f"✅ Session found!")
+            print(f"📞 Phone: {normalized_phone}")
+            
             # Get WhatsApp phone
             whatsapp_phone = self.format_phone_number(normalized_phone)
+            print(f"📱 WhatsApp Phone: {whatsapp_phone}")
             
             # Generate order ID
             order_id = f"ORD{session_id}"
@@ -346,6 +360,7 @@ Type 'hi' to start over."""
 Thank you for your order!
 📞 Contact: +91-9327256068"""
             
+            print(f"📤 Sending confirmation message...")
             success = self.send_whatsapp_message(whatsapp_phone, message)
             
             if success:
@@ -361,7 +376,7 @@ Thank you for your order!
             if normalized_phone in self.user_states:
                 del self.user_states[normalized_phone]
             
-            print(f"✅ Payment processed for session: {session_id}")
+            print(f"✅ Payment processed successfully for session: {session_id}")
             return success
             
         except Exception as e:
@@ -499,68 +514,113 @@ def google_sheets_webhook():
 
 @app.route('/payment/callback', methods=['GET', 'POST'])
 def payment_callback():
-    """Handle Pay0.shop payment callback - Direct WhatsApp redirect"""
+    """Handle Pay0.shop payment callback - ALL METHODS"""
     try:
-        print(f"💳 Payment callback received")
+        print(f"\n{'='*70}")
+        print(f"💳 PAYMENT CALLBACK RECEIVED")
+        print(f"{'='*70}")
+        print(f"Method: {request.method}")
+        print(f"URL: {request.url}")
+        print(f"Args: {dict(request.args)}")
+        print(f"Form: {dict(request.form)}")
+        print(f"Headers: {dict(request.headers)}")
         
-        # Get session ID
+        # Try to get JSON data
+        json_data = request.get_json(silent=True) or {}
+        print(f"JSON: {json_data}")
+        
+        # Get session ID from multiple sources
         session_id = (
             request.args.get('session') or 
+            request.args.get('sessionId') or
+            request.args.get('session_id') or
             request.form.get('session') or 
-            (request.get_json(silent=True) or {}).get('session')
+            request.form.get('sessionId') or
+            json_data.get('session') or
+            json_data.get('sessionId')
         )
         
         # Get payment status
         payment_status = (
             request.args.get('status') or 
+            request.args.get('payment_status') or
             request.form.get('status') or 
-            (request.get_json(silent=True) or {}).get('status', 'success')
+            json_data.get('status', 'success')
         )
         
-        print(f"📝 Session ID: {session_id}, Status: {payment_status}")
+        print(f"\n📝 Extracted Data:")
+        print(f"   Session ID: {session_id}")
+        print(f"   Payment Status: {payment_status}")
+        print(f"{'='*70}\n")
         
         if not session_id:
-            print("❌ Session ID missing")
+            print("❌ ERROR: Session ID missing!")
+            print("   Redirecting to website...")
             return redirect(WEBSITE_URL)
         
         # Process payment if successful
-        if payment_status.lower() in ['success', 'completed', 'paid', 'ok', '1', 'true']:
+        if payment_status.lower() in ['success', 'completed', 'paid', 'ok', '1', 'true', 'approved']:
+            print(f"✅ Payment successful! Processing...")
+            
             # Send WhatsApp message
             success = bot.process_payment_success(session_id)
+            
+            if success:
+                print(f"✅ WhatsApp message sent successfully!")
+            else:
+                print(f"⚠️ Warning: WhatsApp message may have failed")
             
             # Get phone number for redirect
             session = bot.payment_sessions.get(session_id, {})
             phone = session.get('phone', '')
             
+            print(f"\n🔄 Preparing WhatsApp redirect...")
+            print(f"   Phone: {phone}")
+            
             if phone:
-                # Direct redirect to WhatsApp
-                whatsapp_link = f"https://wa.me/{phone}"
-                print(f"✅ Redirecting to WhatsApp: {whatsapp_link}")
+                # Direct redirect to WhatsApp with pre-filled message
+                whatsapp_link = f"https://wa.me/{phone}?text=Order%20confirmed!%20Thanks%20for%20payment."
+                print(f"✅ Redirecting to: {whatsapp_link}")
+                print(f"{'='*70}\n")
                 return redirect(whatsapp_link)
             else:
-                print("❌ Phone number not found")
+                print(f"❌ ERROR: Phone number not found in session!")
+                print(f"   Available sessions: {list(bot.payment_sessions.keys())}")
+                print(f"   Redirecting to website...")
                 return redirect(WEBSITE_URL)
         else:
             # Payment failed - redirect to website
-            print(f"❌ Payment failed: {payment_status}")
+            print(f"❌ Payment failed or cancelled: {payment_status}")
+            print(f"   Redirecting to website...")
             return redirect(WEBSITE_URL)
             
     except Exception as e:
-        print(f"❌ Error in payment callback: {e}")
+        print(f"\n❌ CRITICAL ERROR in payment callback!")
+        print(f"Error: {e}")
         import traceback
         traceback.print_exc()
+        print(f"Redirecting to website...\n")
         return redirect(WEBSITE_URL)
+
+
+# ALTERNATIVE ENDPOINTS - All redirect to main callback
+@app.route('/webhook/payo-callback', methods=['GET', 'POST'])
+def payo_callback():
+    """Alternative callback endpoint - redirects to main"""
+    print("⚠️ Warning: Old callback URL used. Redirecting to new endpoint...")
+    return payment_callback()
 
 
 @app.route('/payment/success', methods=['GET', 'POST'])
 def payment_success():
-    """Alternative success endpoint - redirects to main callback"""
+    """Alternative success endpoint"""
+    print("✅ Payment success endpoint called")
     return payment_callback()
 
 
 @app.route('/payment/failure', methods=['GET', 'POST'])
 def payment_failure():
-    """Handle payment failure - redirect to website"""
+    """Handle payment failure"""
     print("❌ Payment failed or cancelled")
     return redirect(WEBSITE_URL)
 
@@ -635,6 +695,40 @@ def test_order():
     })
 
 
+@app.route('/test/payment', methods=['GET'])
+def test_payment():
+    """Test payment callback"""
+    session_id = request.args.get('session', 'TEST123456789')
+    
+    # Create test session
+    bot.payment_sessions[session_id] = {
+        'phone': '919876543210',
+        'order_data': {
+            'name': 'Test User',
+            'foodItems': 'Test Pizza',
+            'quantity': '1',
+            'total': 99
+        },
+        'timestamp': datetime.now().strftime('%Y%m%d%H%M%S'),
+        'status': 'pending'
+    }
+    
+    print(f"🧪 Test payment session created: {session_id}")
+    
+    # Redirect to callback
+    return redirect(f'/payment/callback?session={session_id}&status=success')
+
+
+@app.route('/sessions', methods=['GET'])
+def list_sessions():
+    """List all active payment sessions"""
+    return jsonify({
+        'sessions': bot.payment_sessions,
+        'user_states': bot.user_states,
+        'count': len(bot.payment_sessions)
+    })
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -646,13 +740,20 @@ def health_check():
             'google_sheets': '/webhook/google-sheets',
             'whatsapp': '/webhook/whatsapp',
             'payment_callback': '/payment/callback',
-            'test_order': '/test/order (POST)'
+            'payo_callback': '/webhook/payo-callback (redirects to /payment/callback)',
+            'test_order': '/test/order (POST)',
+            'test_payment': '/test/payment',
+            'sessions': '/sessions'
         },
         'config': {
             'website_url': WEBSITE_URL,
             'server_url': SERVER_URL,
             'payment_provider': 'Pay0.shop',
             'whatsapp_configured': bool(WHATSAPP_TOKEN and WHATSAPP_PHONE_ID)
+        },
+        'stats': {
+            'active_sessions': len(bot.payment_sessions),
+            'active_users': len(bot.user_states)
         }
     })
 
@@ -686,6 +787,7 @@ if __name__ == '__main__':
     print(f"   Payment Provider: Pay0.shop")
     print(f"   Base Link: {BASE_PAYMENT_LINK}")
     print(f"   Callback URL: {SERVER_URL}/payment/callback")
+    print(f"   Alternative: {SERVER_URL}/webhook/payo-callback")
     
     print("\n📝 Payment Flow:")
     print("   1. Customer places order on website")
@@ -693,28 +795,49 @@ if __name__ == '__main__':
     print("   3. Customer clicks 'Confirm Order'")
     print("   4. Bot sends Pay0 payment link with session ID")
     print("   5. Customer completes payment on Pay0.shop")
-    print("   6. Pay0 redirects to callback URL")
+    print("   6. Pay0 redirects to callback URL with session ID")
     print("   7. Bot sends 'Order preparing' message to WhatsApp")
-    print("   8. Customer redirected back to WhatsApp chat")
+    print("   8. Customer automatically redirected to WhatsApp chat")
     
-    print("\n🔧 Setup Pay0.shop:")
-    print(f"   1. Set callback URL: {SERVER_URL}/payment/callback")
-    print(f"   2. Ensure redirect includes session parameter")
+    print("\n🔧 Pay0.shop Configuration Required:")
+    print(f"   ⚠️ IMPORTANT: Set this as your redirect URL in Pay0.shop:")
+    print(f"   {SERVER_URL}/payment/callback")
+    print(f"   ")
+    print(f"   Alternative URLs (all work):")
+    print(f"   - {SERVER_URL}/webhook/payo-callback")
+    print(f"   - {SERVER_URL}/payment/success")
     
-    print("\n🔧 Test Endpoints:")
-    print(f"   Health Check: http://localhost:5000/health")
-    print(f"   Test Order: http://localhost:5000/test/order")
+    print("\n🧪 Testing Endpoints:")
+    print(f"   Health: {SERVER_URL}/health")
+    print(f"   Test Order: {SERVER_URL}/test/order (POST)")
+    print(f"   Test Payment: {SERVER_URL}/test/payment?session=TEST123")
+    print(f"   View Sessions: {SERVER_URL}/sessions")
+    
+    print("\n📋 How to Test:")
+    print("   1. Visit: {SERVER_URL}/test/payment")
+    print("   2. Check if WhatsApp message is sent")
+    print("   3. Check if redirect to WhatsApp works")
+    
+    print("\n🔍 Debugging Tips:")
+    print("   - Check logs for 'PAYMENT CALLBACK RECEIVED'")
+    print("   - Verify session ID is passed in URL")
+    print("   - Check WhatsApp API response")
+    print("   - View active sessions at /sessions endpoint")
     
     if all_set:
         print("\n✅ Bot is ready!")
         print(f"🌐 Website: {WEBSITE_URL}")
+        print(f"🔗 Server: {SERVER_URL}")
         print("="*70 + "\n")
-        app.run(debug=False, host='0.0.0.0', port=5000)
+        print("🚀 Starting server on port 5000...")
+        print("📱 Waiting for orders...\n")
+        app.run(debug=True, host='0.0.0.0', port=5000)
     else:
         print("\n❌ Please set missing variables in Variables.env")
         print("\n📝 Required in Variables.env:")
         print("   WHATSAPP_TOKEN=your_whatsapp_token")
         print("   WHATSAPP_PHONE_ID=your_phone_id")
         print("   WEBSITE_URL=your_website_url")
-        print("   SERVER_URL=your_server_url (e.g., https://yourdomain.com)")
+        print("   SERVER_URL=https://whatsapp-order-bot-vj1p.onrender.com")
+        print("\n⚠️ SERVER_URL must match your actual deployed URL!")
         print("="*70)
