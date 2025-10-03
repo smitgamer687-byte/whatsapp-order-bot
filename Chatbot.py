@@ -32,7 +32,6 @@ WEBSITE_URL = os.environ.get('WEBSITE_URL', 'https://smitgamer687-byte.github.io
 
 # Payment Configuration
 BASE_PAYMENT_LINK = 'https://pay0.shop/paylink?link=2296&amt='
-# Your server URL for callback (update this with your actual server URL)
 SERVER_URL = os.environ.get('SERVER_URL', 'https://your-server-url.com')
 
 # WhatsApp API URL
@@ -42,7 +41,7 @@ WHATSAPP_API_URL = f"https://graph.facebook.com/v23.0/{WHATSAPP_PHONE_ID}/messag
 class WhatsAppOrderBot:
     def __init__(self):
         self.user_states = {}
-        self.payment_sessions = {}  # Track payment sessions
+        self.payment_sessions = {}
         print("✅ WhatsAppOrderBot initialized with user_states")
 
     def normalize_phone_number(self, phone):
@@ -212,7 +211,7 @@ Please confirm your order:"""
                 'whatsapp_phone': whatsapp_phone
             }
 
-            buttons = ['✏ Edit Order', '✅ Confirm Order']
+            buttons = ['Edit Order', 'Confirm Order']
             success = self.send_interactive_buttons(whatsapp_phone, message, buttons)
 
             return success
@@ -283,7 +282,7 @@ To make changes, visit our website below."""
 
 Click below to complete payment:"""
 
-                    success = self.send_cta_button(phone_number, message, "💳 Pay Now", payment_url)
+                    success = self.send_cta_button(phone_number, message, "Pay Now", payment_url)
 
                     # Update state
                     self.user_states[normalized_phone] = {
@@ -325,17 +324,34 @@ Type 'hi' to start over."""
             # Generate order ID
             order_id = f"ORD{session_id}"
             
-            # Send order preparing message
+            # Get order details
+            name = order_data.get('name', 'Customer')
+            food_items = order_data.get('foodItems', 'N/A')
+            quantity = order_data.get('quantity', 'N/A')
+            total = order_data.get('total', 0)
+            
+            # Send order preparing message with full details
             message = f"""✅ Payment Received!
 
+📋 ORDER DETAILS:
 🔖 Order ID: {order_id}
-🍽 Your order is being prepared
+👤 Name: {name}
+🍽 Items: {food_items}
+📊 Quantity: {quantity}
+💰 Total: ₹{total}
+
+👨‍🍳 Your order is being prepared
 🕒 Estimated time: 15-20 minutes
 
 Thank you for your order!
 📞 Contact: +91-9327256068"""
             
             success = self.send_whatsapp_message(whatsapp_phone, message)
+            
+            if success:
+                print(f"✅ Payment confirmation sent to WhatsApp: {whatsapp_phone}")
+            else:
+                print(f"❌ Failed to send WhatsApp message to: {whatsapp_phone}")
             
             # Update session status
             self.payment_sessions[session_id]['status'] = 'completed'
@@ -483,117 +499,70 @@ def google_sheets_webhook():
 
 @app.route('/payment/callback', methods=['GET', 'POST'])
 def payment_callback():
-    """Handle Pay0.shop payment callback"""
+    """Handle Pay0.shop payment callback - Direct WhatsApp redirect"""
     try:
         print(f"💳 Payment callback received")
         
-        # Get session ID from query params or form data
-        session_id = request.args.get('session') or request.form.get('session')
-        payment_status = request.args.get('status') or request.form.get('status', 'success')
+        # Get session ID
+        session_id = (
+            request.args.get('session') or 
+            request.form.get('session') or 
+            (request.get_json(silent=True) or {}).get('session')
+        )
         
-        print(f"Session ID: {session_id}, Status: {payment_status}")
+        # Get payment status
+        payment_status = (
+            request.args.get('status') or 
+            request.form.get('status') or 
+            (request.get_json(silent=True) or {}).get('status', 'success')
+        )
+        
+        print(f"📝 Session ID: {session_id}, Status: {payment_status}")
         
         if not session_id:
-            return jsonify({'error': 'Session ID missing'}), 400
+            print("❌ Session ID missing")
+            return redirect(WEBSITE_URL)
         
         # Process payment if successful
-        if payment_status.lower() in ['success', 'completed', 'paid']:
+        if payment_status.lower() in ['success', 'completed', 'paid', 'ok', '1', 'true']:
+            # Send WhatsApp message
             success = bot.process_payment_success(session_id)
             
-            if success:
-                # Create WhatsApp deep link to redirect back to chat
-                session = bot.payment_sessions.get(session_id, {})
-                phone = session.get('phone', '')
-                
-                # WhatsApp deep link (opens WhatsApp app)
+            # Get phone number for redirect
+            session = bot.payment_sessions.get(session_id, {})
+            phone = session.get('phone', '')
+            
+            if phone:
+                # Direct redirect to WhatsApp
                 whatsapp_link = f"https://wa.me/{phone}"
-                
-                # Return HTML page with auto-redirect
-                return f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Payment Successful</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1">
-                    <style>
-                        body {{
-                            font-family: Arial, sans-serif;
-                            text-align: center;
-                            padding: 50px;
-                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            color: white;
-                        }}
-                        .container {{
-                            background: white;
-                            color: #333;
-                            padding: 40px;
-                            border-radius: 20px;
-                            max-width: 400px;
-                            margin: 0 auto;
-                            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                        }}
-                        .success-icon {{
-                            font-size: 80px;
-                            margin-bottom: 20px;
-                        }}
-                        h1 {{
-                            color: #28a745;
-                            margin-bottom: 20px;
-                        }}
-                        .btn {{
-                            display: inline-block;
-                            padding: 15px 30px;
-                            background: #25D366;
-                            color: white;
-                            text-decoration: none;
-                            border-radius: 30px;
-                            font-weight: bold;
-                            margin-top: 20px;
-                            transition: transform 0.2s;
-                        }}
-                        .btn:hover {{
-                            transform: scale(1.05);
-                        }}
-                        .info {{
-                            margin: 20px 0;
-                            color: #666;
-                        }}
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="success-icon">✅</div>
-                        <h1>Payment Successful!</h1>
-                        <p class="info">Your order is being prepared</p>
-                        <p class="info">Order ID: <strong>ORD{session_id}</strong></p>
-                        <p>Redirecting to WhatsApp...</p>
-                        <a href="{whatsapp_link}" class="btn">Open WhatsApp</a>
-                    </div>
-                    <script>
-                        // Auto-redirect after 3 seconds
-                        setTimeout(function() {{
-                            window.location.href = "{whatsapp_link}";
-                        }}, 3000);
-                    </script>
-                </body>
-                </html>
-                """
+                print(f"✅ Redirecting to WhatsApp: {whatsapp_link}")
+                return redirect(whatsapp_link)
             else:
-                return jsonify({'error': 'Failed to process payment'}), 500
+                print("❌ Phone number not found")
+                return redirect(WEBSITE_URL)
         else:
-            return jsonify({'error': 'Payment failed or cancelled'}), 400
+            # Payment failed - redirect to website
+            print(f"❌ Payment failed: {payment_status}")
+            return redirect(WEBSITE_URL)
             
     except Exception as e:
         print(f"❌ Error in payment callback: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return redirect(WEBSITE_URL)
 
 
-@app.route('/payment/success', methods=['GET'])
+@app.route('/payment/success', methods=['GET', 'POST'])
 def payment_success():
-    """Alternative success endpoint"""
+    """Alternative success endpoint - redirects to main callback"""
     return payment_callback()
+
+
+@app.route('/payment/failure', methods=['GET', 'POST'])
+def payment_failure():
+    """Handle payment failure - redirect to website"""
+    print("❌ Payment failed or cancelled")
+    return redirect(WEBSITE_URL)
 
 
 @app.route('/webhook/whatsapp', methods=['GET', 'POST'])
@@ -725,8 +694,8 @@ if __name__ == '__main__':
     print("   4. Bot sends Pay0 payment link with session ID")
     print("   5. Customer completes payment on Pay0.shop")
     print("   6. Pay0 redirects to callback URL")
-    print("   7. Bot sends 'Order preparing' message")
-    print("   8. Customer redirected back to WhatsApp")
+    print("   7. Bot sends 'Order preparing' message to WhatsApp")
+    print("   8. Customer redirected back to WhatsApp chat")
     
     print("\n🔧 Setup Pay0.shop:")
     print(f"   1. Set callback URL: {SERVER_URL}/payment/callback")
