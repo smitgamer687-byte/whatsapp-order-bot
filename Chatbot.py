@@ -28,7 +28,7 @@ CORS(app,
 WHATSAPP_TOKEN = os.environ.get('WHATSAPP_TOKEN')
 WHATSAPP_PHONE_ID = os.environ.get('WHATSAPP_PHONE_ID')
 VERIFY_TOKEN = os.environ.get('VERIFY_TOKEN', 'your_verify_token')
-WEBSITE_URL = os.environ.get('WEBSITE_URL', 'https://chefpal.preview.emergentagent.com/')
+WEBSITE_URL = os.environ.get('WEBSITE_URL', 'https://chefpal.preview.emergentagent.com')
 
 # Payment Configuration
 BASE_PAYMENT_LINK = 'https://pay0.shop/paylink?link=2296&amt='
@@ -841,4 +841,5 @@ if __name__ == '__main__':
         print("   SERVER_URL=https://whatsapp-order-bot-vj1p.onrender.com")
         print("\n⚠️ SERVER_URL must match your actual deployed URL!")
         print("="*70)
+
 
